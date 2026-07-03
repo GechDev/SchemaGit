@@ -1,7 +1,7 @@
 CREATE TYPE public.user_role AS ENUM ('admin', 'member');
 CREATE SEQUENCE public.user_id_seq;
 CREATE TABLE public.users (
-    id bigint NOT NULL CONSTRAINT users_id_pk PRIMARY KEY,
+    id bigint NOT NULL DEFAULT nextval('public.user_id_seq'::regclass) CONSTRAINT users_id_pk PRIMARY KEY,
     role public.user_role NOT NULL,
     email text NOT NULL DEFAULT 'unknown',
     CONSTRAINT users_email_key UNIQUE (email)
