@@ -1,0 +1,15 @@
+version: 1
+default_branch: main
+
+environments:
+  dev:
+    url_env: SCHEMAGIT_DEV_URL
+  prod:
+    url_env: SCHEMAGIT_PROD_URL
+    read_only: true
+
+safety:
+  block_destructive: true
+
+linked_git:
+  enabled: false
