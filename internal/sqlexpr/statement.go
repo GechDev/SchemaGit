@@ -101,6 +101,7 @@ func CanonicalTokens(tokens []Token) (string, error) {
 	stripped := stripCasts(tokens)
 	unqualified := stripDefaultNamespace(stripped)
 	reduced := dropRedundantParens(unqualified)
+	reduced = stripRelationQualifiers(reduced)
 	for len(reduced) > 0 && reduced[len(reduced)-1].IsPunctuation(";") {
 		reduced = reduced[:len(reduced)-1]
 	}

@@ -185,6 +185,91 @@ func stripDefaultNamespace(tokens []Token) []Token {
 	return result
 }
 
+// stripRelationQualifiers removes `<relation>.` prefixes that qualify a column
+// with the only relation the statement reads. pg_get_viewdef always qualifies
+// columns with their table, while hand written DDL usually does not, so both
+// forms have to converge on the same canonical text.
+func stripRelationQualifiers(tokens []Token) []Token {
+	qualifiers := relationQualifiers(tokens)
+	if len(qualifiers) == 0 {
+		return tokens
+	}
+	result := make([]Token, 0, len(tokens))
+	for index := 0; index < len(tokens); index++ {
+		if opensQualifier(tokens, index) &&
+			qualifiers[strings.ToLower(tokens[index].Value)] &&
+			index+2 < len(tokens) && tokens[index+1].IsPunctuation(".") &&
+			(tokens[index+2].Kind == KindIdentifier || tokens[index+2].Kind == KindQuotedIdentifier) {
+			index++
+			continue
+		}
+		result = append(result, tokens[index])
+	}
+	return result
+}
+
+// relationQualifiers collects the relations a statement reads plus the aliases
+// assigned to them, which are the only names allowed to qualify a column. The
+// schema part of a qualified relation name is deliberately excluded so that
+// `from app.users` keeps its schema prefix.
+func relationQualifiers(tokens []Token) map[string]bool {
+	qualifiers := map[string]bool{}
+	for index := 0; index < len(tokens); index++ {
+		if tokens[index].Kind != KindIdentifier || !relationKeywords[tokens[index].Value] {
+			continue
+		}
+		cursor := index + 1
+		if cursor < len(tokens) && tokens[cursor].IsPunctuation("(") {
+			continue
+		}
+		last := ""
+		for cursor < len(tokens) {
+			token := tokens[cursor]
+			if token.Kind != KindIdentifier && token.Kind != KindQuotedIdentifier {
+				break
+			}
+			last = strings.ToLower(token.Value)
+			cursor++
+			if cursor+1 < len(tokens) && tokens[cursor].IsPunctuation(".") &&
+				(tokens[cursor+1].Kind == KindIdentifier || tokens[cursor+1].Kind == KindQuotedIdentifier) {
+				cursor++
+				continue
+			}
+			break
+		}
+		if last == "" {
+			continue
+		}
+		qualifiers[last] = true
+		if cursor < len(tokens) {
+			next := tokens[cursor]
+			if next.Kind == KindQuotedIdentifier ||
+				(next.Kind == KindIdentifier && !keywords[next.Value]) {
+				qualifiers[strings.ToLower(next.Value)] = true
+				cursor++
+			}
+		}
+		index = cursor - 1
+	}
+	return qualifiers
+}
+
+// opensQualifier reports whether the token at index can be the first part of a
+// qualified reference such as `users.id` or `u.email`.
+func opensQualifier(tokens []Token, index int) bool {
+	if index == 0 {
+		return true
+	}
+	previous := tokens[index-1]
+	switch previous.Kind {
+	case KindPunctuation:
+		return previous.Value == "(" || previous.Value == ","
+	case KindIdentifier:
+		return keywords[previous.Value]
+	}
+	return false
+}
+
 // dropRedundantParens removes parentheses that wrap a whole expression term.
 // A group is only dropped when it occupies a complete operand position: it must
 // not be the operand of a surrounding operator and it must not contain a
