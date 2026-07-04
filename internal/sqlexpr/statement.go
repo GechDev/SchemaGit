@@ -106,3 +106,60 @@ func CanonicalTokens(tokens []Token) (string, error) {
 	}
 	return Render(reduced), nil
 }
+
+var relationKeywords = map[string]bool{
+	"from": true, "join": true, "update": true, "into": true,
+}
+
+// Relations returns the relation names a query reads or writes, reduced to
+// their final component. Names that cannot be resolved to a schema object are
+// still returned so callers can decide how to treat them.
+func Relations(statement string) ([]string, error) {
+	tokens, err := Tokenize(statement)
+	if err != nil {
+		return nil, err
+	}
+	return RelationTokens(tokens), nil
+}
+
+// RelationTokens is Relations for an already tokenised statement.
+func RelationTokens(body []Token) []string {
+	names := []string{}
+	seen := map[string]bool{}
+	for index := 0; index+1 < len(body); index++ {
+		if body[index].Kind != KindIdentifier || !relationKeywords[body[index].Value] {
+			continue
+		}
+		start := index + 1
+		if body[start].IsPunctuation("(") {
+			continue
+		}
+		name := readRelationName(body, start)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+		index = start
+	}
+	return names
+}
+
+func readRelationName(body []Token, start int) string {
+	index := start
+	last := ""
+	for index < len(body) {
+		token := body[index]
+		if token.Kind != KindIdentifier && token.Kind != KindQuotedIdentifier {
+			break
+		}
+		last = strings.ToLower(token.Value)
+		index++
+		if index+1 < len(body) && body[index].IsPunctuation(".") {
+			index++
+			continue
+		}
+		break
+	}
+	return last
+}

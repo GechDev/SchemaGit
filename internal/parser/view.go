@@ -7,11 +7,6 @@ import (
 	"github.com/schemagit/schemagit/internal/sqlexpr"
 )
 
-// relationKeywords introduce a relation reference inside a query.
-var relationKeywords = map[string]bool{
-	"from": true, "join": true, "update": true, "into": true,
-}
-
 func (b *builder) createView(cursor *reader) error {
 	if err := cursor.expectKeyword("view"); err != nil {
 		return err
@@ -80,56 +75,11 @@ func queryBody(body []sqlexpr.Token) ([]sqlexpr.Token, error) {
 	return body[:end], nil
 }
 
-// referencedRelations collects the relation names a query reads from. Names
-// that do not resolve to a known table or view are ignored: they are most
-// likely CTE aliases, which are not part of the schema model.
+// referencedRelations collects the relation names a view body reads. Names that
+// do not resolve to a known table or view are dropped: they are most likely CTE
+// aliases, which are not part of the schema model.
 func referencedRelations(body []sqlexpr.Token) []string {
-	names := []string{}
-	for index := 0; index+1 < len(body); index++ {
-		if body[index].Kind != sqlexpr.KindIdentifier || !relationKeywords[body[index].Value] {
-			continue
-		}
-		cursor := index + 1
-		if cursor < len(body) && body[cursor].IsPunctuation("(") {
-			continue
-		}
-		name, next := readRelationName(body, cursor)
-		if name == "" {
-			continue
-		}
-		names = append(names, name)
-		index = next
-	}
-	unique := map[string]bool{}
-	ordered := []string{}
-	for _, name := range names {
-		if !unique[name] {
-			unique[name] = true
-			ordered = append(ordered, name)
-		}
-	}
-	return ordered
-}
-
-// readRelationName reads a possibly schema qualified relation name and returns
-// its final component plus the index of the last token consumed.
-func readRelationName(body []sqlexpr.Token, start int) (string, int) {
-	index := start
-	last := ""
-	for index < len(body) {
-		token := body[index]
-		if token.Kind != sqlexpr.KindIdentifier && token.Kind != sqlexpr.KindQuotedIdentifier {
-			break
-		}
-		last = lowerName(token.Value)
-		index++
-		if index+1 < len(body) && body[index].IsPunctuation(".") {
-			index++
-			continue
-		}
-		break
-	}
-	return last, index - 1
+	return sqlexpr.RelationTokens(body)
 }
 
 // resolveViewDependencies fills in View.DependsOn once every table and view is

@@ -73,13 +73,7 @@ func Canonical(expression string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	stripped := stripCasts(tokens)
-	unqualified := stripDefaultNamespace(stripped)
-	reduced := dropRedundantParens(unqualified)
-	for len(reduced) > 0 && reduced[len(reduced)-1].IsPunctuation(";") {
-		reduced = reduced[:len(reduced)-1]
-	}
-	return Render(reduced), nil
+	return CanonicalTokens(tokens)
 }
 
 // CanonicalDefault normalises a column default expression. PostgreSQL stores
