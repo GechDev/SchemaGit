@@ -30,7 +30,7 @@ func testDatabaseURL(t *testing.T) string {
 // must hash identically to the same DDL parsed from text.
 func TestIntrospectMatchesParser(t *testing.T) {
 	url := testDatabaseURL(t)
-	ddl, err := os.ReadFile("../../testdata/fixtures/simple.sql")
+	ddl, err := os.ReadFile("../../../testdata/fixtures/simple.sql")
 	require.NoError(t, err)
 
 	expected, err := parser.ParseDDL(string(ddl))
@@ -51,8 +51,14 @@ func TestIntrospectMatchesParser(t *testing.T) {
 	require.NoError(t, err)
 
 	actualHash := schema.Hash(actual)
+	if os.Getenv("SCHEMAGIT_TEST_DUMP") != "" {
+		canonical, err := schema.CanonicalJSON(actual)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile("../../../testdata/fixtures/catalog_output.json", canonical, 0o644))
+		t.Log("wrote testdata/fixtures/catalog_output.json")
+	}
 	require.Equal(t, expectedHash, actualHash,
-		"introspection and DDL parsing disagree; write the canonical output to testdata/fixtures/catalog_output.sql to compare")
+		"introspection and DDL parsing disagree; set SCHEMAGIT_TEST_DUMP=1 to write testdata/fixtures/catalog_output.json and compare")
 }
 
 // TestAppliedMigrationsLifecycle covers the bookkeeping table used to track

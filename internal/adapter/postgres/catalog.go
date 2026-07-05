@@ -66,9 +66,9 @@ func (a *Adapter) readTables(ctx context.Context, connection *pgx.Conn) (*tableS
 		       a.attname,
 		       a.attnum,
 		       pg_catalog.format_type(a.atttypid, a.atttypmod),
-		       NOT a.attnotnull,
+		       a.attnotnull,
 		       a.attidentity <> '',
-		       a.attgenerated,
+		       a.attgenerated::text,
 		       pg_catalog.pg_get_expr(d.adbin, d.adrelid)
 		FROM pg_catalog.pg_class c
 		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
@@ -139,7 +139,7 @@ func (a *Adapter) readConstraints(ctx context.Context, connection *pgx.Conn, tab
 		SELECT n.nspname,
 		       c.relname,
 		       con.conname,
-		       con.contype,
+		       con.contype::text,
 		       (SELECT coalesce(array_agg(a.attname ORDER BY u.ord), ARRAY[]::text[])
 		          FROM unnest(con.conkey) WITH ORDINALITY AS u(attnum, ord)
 		          JOIN pg_catalog.pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = u.attnum),
@@ -148,14 +148,14 @@ func (a *Adapter) readConstraints(ctx context.Context, connection *pgx.Conn, tab
 		          JOIN pg_catalog.pg_attribute a ON a.attrelid = con.confrelid AND a.attnum = u.attnum),
 		       rn.nspname,
 		       rc.relname,
-		       CASE WHEN con.contype = 'c'
+		       CASE WHEN con.contype::text = 'c'
 		            THEN pg_catalog.pg_get_expr(con.conbin, con.conrelid) END
 		FROM pg_catalog.pg_constraint con
 		JOIN pg_catalog.pg_class c ON c.oid = con.conrelid
 		JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 		LEFT JOIN pg_catalog.pg_class rc ON rc.oid = con.confrelid
 		LEFT JOIN pg_catalog.pg_namespace rn ON rn.oid = rc.relnamespace
-		WHERE con.contype IN ('p', 'u', 'c', 'f')
+		WHERE con.contype::text IN ('p', 'u', 'c', 'f')
 		  AND c.relname <> '`+migrationTableName+`'
 		  AND `+systemFilter+`
 		ORDER BY n.nspname, c.relname, con.conname`)
@@ -281,22 +281,35 @@ func (a *Adapter) readEnums(ctx context.Context, connection *pgx.Conn, namespace
 		return err
 	}
 	defer rows.Close()
-	indexes := map[string]*schema.Enum{}
+	labels := map[string][]string{}
+	names := map[string]string{}
 	for rows.Next() {
 		var schemaName, typeName, label string
 		if err := rows.Scan(&schemaName, &typeName, &label); err != nil {
 			return err
 		}
 		key := qualified(schemaName, typeName)
-		enum, ok := indexes[key]
-		if !ok {
-			enum = &schema.Enum{ID: "enum:" + key, Name: typeName, Values: []string{}}
-			namespace(schemaName).Enums = append(namespace(schemaName).Enums, *enum)
-			indexes[key] = enum
+		if _, ok := labels[key]; !ok {
+			names[key] = schemaName
 		}
-		enum.Values = append(enum.Values, label)
+		labels[key] = append(labels[key], label)
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	keys := make([]string, 0, len(labels))
+	for key := range labels {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		namespace(names[key]).Enums = append(namespace(names[key]).Enums, schema.Enum{
+			ID:     "enum:" + key,
+			Name:   key[len(names[key])+1:],
+			Values: labels[key],
+		})
+	}
+	return nil
 }
 
 func (a *Adapter) readSequences(ctx context.Context, connection *pgx.Conn, namespace func(string) *schema.Namespace) error {
@@ -385,7 +398,7 @@ func (a *Adapter) readFunctions(ctx context.Context, connection *pgx.Conn, names
 		FROM pg_catalog.pg_proc p
 		JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
 		JOIN pg_catalog.pg_language l ON l.oid = p.prolang
-		WHERE p.prokind = 'f' AND NOT p.proisagg AND NOT p.proiswindow AND `+systemFilter+`
+		WHERE p.prokind = 'f' AND `+systemFilter+`
 		ORDER BY n.nspname, p.proname, p.oid`)
 	if err != nil {
 		return err
