@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemagit.dev/schema/v1.json",
+  "title": "SchemaGit Schema Model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["namespaces"],
+  "properties": {
+    "namespaces": {"type": "array", "items": {"$ref": "#/$defs/namespace"}}
+  },
+  "$defs": {
+    "identified": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1}
+      }
+    },
+    "namespace": {
+      "allOf": [
+        {"$ref": "#/$defs/identified"},
+        {
+          "type": "object",
+          "properties": {
+            "tables": {"type": "array", "items": {"$ref": "#/$defs/table"}},
+            "views": {"type": "array", "items": {"$ref": "#/$defs/view"}},
+            "enums": {"type": "array", "items": {"$ref": "#/$defs/enum"}},
+            "sequences": {"type": "array", "items": {"$ref": "#/$defs/sequence"}},
+            "functions": {"type": "array", "items": {"$ref": "#/$defs/function"}}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "table": {
+      "allOf": [
+        {"$ref": "#/$defs/identified"},
+        {
+          "type": "object",
+          "required": ["columns"],
+          "properties": {
+            "columns": {"type": "array", "items": {"$ref": "#/$defs/column"}},
+            "constraints": {"type": "array", "items": {"$ref": "#/$defs/constraint"}},
+            "indexes": {"type": "array", "items": {"$ref": "#/$defs/index"}}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "ordinal", "type", "nullable"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "ordinal": {"type": "integer", "minimum": 1},
+        "type": {"type": "string", "minLength": 1},
+        "nullable": {"type": "boolean"},
+        "default": {"type": "string"},
+        "is_identity": {"type": "boolean"},
+        "generated": {"type": "string"}
+      }
+    },
+    "constraint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "type"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "type": {"enum": ["pk", "unique", "check", "fk"]},
+        "columns": {"type": "array", "items": {"type": "string"}},
+        "expression": {"type": "string"},
+        "referenced_table": {"type": "string"},
+        "referenced_columns": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "columns": {"type": "array", "items": {"type": "string"}},
+        "method": {"type": "string"},
+        "unique": {"type": "boolean"},
+        "predicate": {"type": "string"}
+      }
+    },
+    "view": {
+      "allOf": [
+        {"$ref": "#/$defs/identified"},
+        {
+          "type": "object",
+          "required": ["definition"],
+          "properties": {
+            "definition": {"type": "string"},
+            "depends_on": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "enum": {
+      "allOf": [
+        {"$ref": "#/$defs/identified"},
+        {
+          "type": "object",
+          "required": ["values"],
+          "properties": {"values": {"type": "array", "items": {"type": "string"}}}
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "sequence": {
+      "allOf": [
+        {"$ref": "#/$defs/identified"},
+        {
+          "type": "object",
+          "required": ["data_type", "start", "increment", "min_value", "max_value", "cycle"],
+          "properties": {
+            "data_type": {"type": "string"},
+            "start": {"type": "integer"},
+            "increment": {"type": "integer"},
+            "min_value": {"type": "integer"},
+            "max_value": {"type": "integer"},
+            "cycle": {"type": "boolean"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "function": {
+      "allOf": [
+        {"$ref": "#/$defs/identified"},
+        {
+          "type": "object",
+          "required": ["return_type", "language", "definition"],
+          "properties": {
+            "arguments": {"type": "array", "items": {"type": "string"}},
+            "return_type": {"type": "string"},
+            "language": {"type": "string"},
+            "definition": {"type": "string"}
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}
